@@ -5,8 +5,13 @@ const express = require('express');
 const app = express();
 const bodyParser = require('body-parser');
 
-const db = require('./helper/datasim');
-const data = db.data;
+const sqlite3 = require('sqlite3').verbose();
+let db = new sqlite3.Database('testdb', sqlite3.OPEN_READWRITE, (err) => {
+  if (err) {
+    console.error(err.message);
+  }
+  console.log('Connected to the database.');
+});
 
 app.use(bodyParser.urlencoded({
   extended: true
@@ -16,53 +21,53 @@ app.use(express.static(__dirname + '/public'));
 
 app.get('/users', (req, res) => {
   //see all users
-  res.json(data);
+  db.all('SELECT * FROM users ', function (err, rows) {
+    res.json(rows);
+  });
+
 });
 
 app.post('/users', (req, res) => {
   //create add user
 
-  req.body.id = Math.floor(Date.now());
+  db.run(`INSERT INTO users (name,pass) VALUES('${req.body.name}','${req.body.pass}')`, function (err) {
+    console.log(err);
+    res.json({
+      id: this.lastID
+    });
+  });
 
-  data.users.push(req.body);
-  console.log(data);
-  res.send('Create!');
 });
 app.get('/users/:id', (req, res) => {
   //get user info by id
   console.log(req.params.id);
-  res.send(db.getRow(req.params.id));
+  db.run("SELECT * FROM users WHERE id = " + req.params.id, function (err) {
+    console.log(err);
+    res.json({
+      rows
+    });
+  });
 });
 
 app.put('/users/:id', (req, res) => {
   //update user
-  req.body.id = req.params.id;
-  let temp = db.findID(data.users, req.params.id);
-  if (temp != -1) {
-    data.users[temp] = req.body;
-    res.write('UPDATE!');
+  db.run(`UPDATE users SET name="${req.body.name}", pass="${req.body.pass}" WHERE id = ${req.params.id}`, function (err) {
+    console.log(err);
+    res.json({
+      status: this.changes
+    });
+  });
 
-  } else {
-    res.write('not found id:' + req.params.id);
-  }
-  console.log(data);
-  res.send();
 });
 
 app.delete('/users/:id', (req, res) => {
   //delete user
-  let id = db.findID(data.users, req.params.id); //dbに存在しないidは-1が返ってくる
-  console.log(id);
-  if (id != -1) {
-    data.users.splice(id, 1);
-    console.log(data);
-    res.write('deleted ID :' + req.params.id);
-
-  } else {
-    res.write('not found id!');
-  }
-
-  res.send();
+  db.run(`DELETE FROM users  WHERE id = ${req.params.id}`, function (err) {
+    console.log(err);
+    res.json({
+      status: this.changes
+    });
+  });
 });
 
 app.listen(3000);
